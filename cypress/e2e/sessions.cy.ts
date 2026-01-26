@@ -3,6 +3,7 @@ describe('Sessions Management', () => {
     let projectName: string
 
     beforeEach(() => {
+        cy.viewport(1280, 720)
         // Register with unique email for this test suite
         const email = `test-sessions-${Date.now()}@example.com`
         projectName = `Session Test Project ${Date.now()}`
@@ -27,38 +28,39 @@ describe('Sessions Management', () => {
 
         // Wait for sessions page to load
         cy.url({ timeout: 10000 }).should('include', '/projects/')
-        cy.contains(/no sessions yet/i, { timeout: 10000 })
+        // Verify we are on the BOM Converter page
+        cy.contains('BOM CONVERTER', { timeout: 10000 }).should('be.visible')
     })
 
-    it('should display empty sessions page', () => {
-        cy.contains(/no sessions yet/i).should('be.visible')
+    it('should display empty sessions sidebar', () => {
+        cy.contains(/no history/i).should('be.visible')
     })
 
-    it('should create a new session', () => {
-        const sessionTitle = `Test Session ${Date.now()}`
+    it('should create a new session (operation)', () => {
+        const sessionTitle = `Test Operation ${Date.now()}`
 
         cy.contains('+ New Session', { timeout: 10000 }).should('be.visible').click()
-        cy.contains('Create New Session', { timeout: 10000 }).should('be.visible')
-        cy.get('input[required]').type(sessionTitle)
-        cy.contains('button', 'Create').click()
+        cy.contains('New Operation', { timeout: 10000 }).should('be.visible')
+        cy.get('input[placeholder="Operation Name"]').type(sessionTitle)
+        cy.contains('button', 'Initialize').click()
 
         // Session should appear in list
         cy.contains(sessionTitle, { timeout: 10000 }).should('be.visible')
     })
 
     it('should select and display session content', () => {
-        const sessionTitle = `Selectable Session ${Date.now()}`
+        const sessionTitle = `Selectable Operation ${Date.now()}`
 
         // Create session
         cy.contains('+ New Session', { timeout: 10000 }).click()
-        cy.get('input[required]').type(sessionTitle)
-        cy.contains('button', 'Create').click()
+        cy.get('input[placeholder="Operation Name"]').type(sessionTitle)
+        cy.contains('button', 'Initialize').click()
 
         // Click on session
         cy.contains(sessionTitle, { timeout: 10000 }).click()
 
-        // Should display session title in content area
-        cy.contains(sessionTitle).should('be.visible')
+        // Should display the empty state upload bucket
+        cy.contains('Upload Source BOM').should('be.visible')
     })
 
     it('should navigate back to projects', () => {
