@@ -263,6 +263,7 @@ export function SessionsPage() {
                                             sessionId={selectedSession.id}
                                             blobs={blobs}
                                             onRefreshBlobs={() => loadBlobs(selectedSession.id)}
+                                            initialMessage="[SYSTEM_HIDDEN] You are an intelligent agent helping a user with file processing. The user will provide files and wants you to produce a new file. Guide the user and ask questions to best figure out the file they want. Please list your current tools and give an explanation of your capabilities at the outset."
                                         />
 
                                         <div className="industrial-panel rounded-sm p-6">

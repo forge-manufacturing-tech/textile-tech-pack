@@ -7,7 +7,7 @@ interface ChatInterfaceProps {
     onRefreshBlobs?: () => void;
 }
 
-export function ChatInterface({ sessionId, blobs, onRefreshBlobs }: ChatInterfaceProps) {
+export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage }: ChatInterfaceProps & { initialMessage?: string }) {
     const [messages, setMessages] = useState<MessageResponse[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -30,7 +30,14 @@ export function ChatInterface({ sessionId, blobs, onRefreshBlobs }: ChatInterfac
 
     const loadMessages = async () => {
         try {
-            const data = await ControllersChatService.listMessages(sessionId);
+            let data = await ControllersChatService.listMessages(sessionId);
+
+            if (data.length === 0 && initialMessage) {
+                // Send hidden initial message to seed the conversation
+                await ControllersChatService.chat(sessionId, { message: initialMessage });
+                data = await ControllersChatService.listMessages(sessionId);
+            }
+
             setMessages(data);
         } catch (error) {
             console.error('Failed to load messages:', error);
@@ -113,7 +120,7 @@ export function ChatInterface({ sessionId, blobs, onRefreshBlobs }: ChatInterfac
                         <div className="text-[10px] font-mono uppercase tracking-[0.3em]">Ready for secure data processing</div>
                     </div>
                 )}
-                {messages.map((msg) => (
+                {messages.filter(msg => msg.content !== initialMessage).map((msg) => (
                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[85%] p-4 rounded-sm border ${msg.role === 'user'
                             ? 'bg-industrial-copper-500/5 border-industrial-copper-500/30 text-neutral-100 shadow-glow-copper/5'
