@@ -74,7 +74,7 @@ export function SessionsPage() {
             formData.append('file', file);
 
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/sessions/${selectedSession.id}/blobs`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sessions/${selectedSession.id}/blobs`, {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -97,7 +97,7 @@ export function SessionsPage() {
     const handleDownload = async (blob: BlobResponse) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/blobs/${blob.id}/download`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/blobs/${blob.id}/download`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
