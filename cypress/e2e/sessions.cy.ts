@@ -9,7 +9,7 @@ describe('Sessions Management', () => {
         projectName = `Session Test Project ${Date.now()}`
 
         // Setup: Register, login, and create a project
-        cy.visit('/login')
+        cy.visit('/#/login')
         cy.contains("Create New Account").click()
         cy.get('input[type="text"]').type('Test User')
         cy.get('input[type="email"]').type(email)
@@ -17,7 +17,7 @@ describe('Sessions Management', () => {
         cy.get('button[type="submit"]').click()
 
         // Wait for redirect
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/')
+        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/#/')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
         cy.contains(/no projects found/i, { timeout: 10000 })
 
@@ -65,7 +65,7 @@ describe('Sessions Management', () => {
 
     it('should navigate back to projects', () => {
         cy.contains('Back', { timeout: 10000 }).click()
-        cy.url({ timeout: 10000 }).should('eq', 'http://localhost:3000/')
+        cy.url({ timeout: 10000 }).should('eq', 'http://localhost:3000/#/')
         cy.contains('PROJECTS').should('be.visible')
     })
 })

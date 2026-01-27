@@ -5,7 +5,7 @@ describe('Projects Management', () => {
         // Register and login before each test with unique email
         const email = `test-projects-${Date.now()}@example.com`
 
-        cy.visit('/login')
+        cy.visit('/#/login')
         cy.contains("Create New Account").click()
         cy.get('input[type="text"]').type('Test User')
         cy.get('input[type="email"]').type(email)
@@ -13,7 +13,7 @@ describe('Projects Management', () => {
         cy.get('button[type="submit"]').click()
 
         // Wait for redirect to complete
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/')
+        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/#/')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
         // Wait for page to fully load
         cy.contains(/no projects found/i, { timeout: 10000 })

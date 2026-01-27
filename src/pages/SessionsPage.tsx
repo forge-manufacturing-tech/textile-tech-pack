@@ -924,7 +924,7 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Minimal History Sidebar */}
-                <div className="w-64 border-r border-industrial-concrete bg-industrial-steel-900/50 hidden lg:block overflow-y-auto scanlines">
+                <div className={`w-full lg:w-64 border-r border-industrial-concrete bg-industrial-steel-900/50 overflow-y-auto scanlines ${selectedSession ? 'hidden lg:block' : 'block'}`}>
                     <div className="p-4">
                         <h2 className="text-[10px] font-bold text-industrial-steel-500 uppercase tracking-widest mb-4 font-mono">History</h2>
                         {sessions.length === 0 ? (
@@ -951,7 +951,17 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                 </div>
 
                 {/* Main Content */}
-                <div className="flex-1 bg-industrial-steel-950 overflow-y-auto relative">
+                <div className={`flex-1 bg-industrial-steel-950 overflow-y-auto relative ${!selectedSession ? 'hidden lg:block' : 'block'}`}>
+                    {selectedSession && (
+                        <div className="lg:hidden p-2 border-b border-industrial-concrete bg-industrial-steel-900/50">
+                            <button
+                                onClick={() => setSelectedSession(null)}
+                                className="flex items-center gap-2 text-industrial-copper-500 font-mono text-xs uppercase"
+                            >
+                                ← Back to Session List
+                            </button>
+                        </div>
+                    )}
                     {!selectedSession ? (
                         <div className="flex items-center justify-center h-full">
                             <div className="text-center text-industrial-steel-500">
@@ -975,10 +985,11 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                             e.preventDefault();
                             if (!projectId) return;
                             ControllersSessionsService.add({ title: newSessionTitle, content: '', project_id: projectId })
-                                .then(() => {
+                                .then((newSession) => {
                                     setShowCreateModal(false);
                                     setNewSessionTitle('');
                                     loadProjectAndSessions();
+                                    setSelectedSession(newSession);
                                 });
                         }} className="space-y-4">
                             <input

@@ -1,6 +1,6 @@
 describe('Authentication Flow', () => {
     beforeEach(() => {
-        cy.visit('/login')
+        cy.visit('/#/login')
     })
 
     it('should display login page', () => {
@@ -27,7 +27,7 @@ describe('Authentication Flow', () => {
         // Wait for error element to appear (API might be slow)
         cy.get('.bg-industrial-alert\\/10', { timeout: 20000 }).should('be.visible')
         // Should still be on login page
-        cy.url().should('include', '/login')
+        cy.hash().should('include', '/login')
     })
 
     it('should complete full registration and login flow', () => {
@@ -49,7 +49,7 @@ describe('Authentication Flow', () => {
 
 
         // Should redirect to projects page (might take a moment)
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/')
+        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/#/')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
         cy.contains(email).should('be.visible')
     })
