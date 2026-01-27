@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return token ? { email: '', name: '' } : null;  // Placeholder until we have /current endpoint
     });
     const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-    const [isLoading, setIsLoading] = useState(false);  // Changed to false since we don't fetch on mount
+    const [isLoading] = useState(false);  // Changed to false since we don't fetch on mount
 
     useEffect(() => {
         if (token) {

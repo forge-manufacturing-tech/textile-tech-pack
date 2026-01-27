@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ControllersSessionsService, ControllersProjectsService, ControllersChatService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse, MessageResponse } from '../api/generated';
+import { ControllersSessionsService, ControllersProjectsService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse } from '../api/generated';
 import { useAuth } from '../contexts/AuthContext';
 
 export function SessionsPage() {
@@ -15,12 +15,13 @@ export function SessionsPage() {
     // State
     const [blobs, setBlobs] = useState<BlobResponse[]>([]);
     const [uploading, setUploading] = useState(false);
-    const [messages, setMessages] = useState<MessageResponse[]>([]);
     const [processing, setProcessing] = useState(false);
     const [processingStatus, setProcessingStatus] = useState('');
     const [wizardStep, setWizardStep] = useState(1);
     const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
     const [targetColumns, setTargetColumns] = useState('Part Number, Description, Quantity, Manufacturer, Price');
+    const [wizardStartType, setWizardStartType] = useState<'bom' | 'description' | 'sketch' | null>(null);
+    const [productDescription, setProductDescription] = useState('');
 
     const DOC_TYPES = [
         "Production",
@@ -118,6 +119,8 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
 
     // Session Switch
     useEffect(() => {
+        setWizardStartType(null);
+        setProductDescription('');
         if (selectedSession) {
             loadSessionData(selectedSession.id);
             // If already processing, start polling
@@ -130,7 +133,6 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
             }
         } else {
             setBlobs([]);
-            setMessages([]);
             setCsvData({});
             setWizardStep(1);
         }
@@ -178,12 +180,8 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
 
     const loadSessionData = async (sessionId: string) => {
         try {
-            const [blobsData, messagesData] = await Promise.all([
-                ControllersBlobsService.list(sessionId),
-                ControllersChatService.listMessages(sessionId)
-            ]);
+            const blobsData = await ControllersBlobsService.list(sessionId);
             setBlobs(blobsData);
-            setMessages(messagesData);
         } catch (error) {
             console.error('Failed to load session data:', error);
         }
@@ -217,25 +215,6 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
         }
     };
 
-    const sendMessageAndPoll = async (message: string) => {
-        if (!selectedSession) return;
-
-        // Optimistic update
-        const tempMsg: MessageResponse = {
-            id: crypto.randomUUID(),
-            session_id: selectedSession.id,
-            role: 'user',
-            content: message,
-            created_at: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, tempMsg]);
-
-        await ControllersChatService.chat(selectedSession.id, { message });
-
-        // Refresh messages after chat (agent runs in a cycle there)
-        const newMessages = await ControllersChatService.listMessages(selectedSession.id);
-        setMessages(newMessages);
-    };
 
     const handleCancel = async () => {
         if (!selectedSession) return;
@@ -275,17 +254,24 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
         // 1. Prepare Prompts
         const prompts: string[] = [];
 
-        // Core Analysis
-        const basePrompt = `
-[SYSTEM: TECH_TRANSFER_INIT]
-GOAL: ${targetColumns}
-INSTRUCTION:
-1. Analyze the uploaded technical file(s).
-2. Create a 'BOM_Standardized.xlsx' with columns: ${targetColumns}.
-3. Create a 'data_summary.csv' of the main parts list.
-4. Extract key technical parameters.
-`;
-        prompts.push(basePrompt);
+        // Core Analysis & Initialization
+        let analysisPrompt = `[SYSTEM: TECH_TRANSFER_INIT]\nGOAL: ${targetColumns}\nINSTRUCTION:\n`;
+
+        if (wizardStartType === 'description' && productDescription) {
+            analysisPrompt += `1. Use the following PRODUCT DESCRIPTION as the source of truth:\n"${productDescription}"\n`;
+            analysisPrompt += `2. Architect a plausible 'BOM_Standardized.xlsx' with columns: ${targetColumns} based on this description.\n`;
+        } else if (wizardStartType === 'sketch') {
+            analysisPrompt += `1. Analyze the uploaded image(s)/sketch(es) to understand the product structure.\n`;
+            analysisPrompt += `2. Brainstorm and architect a 'BOM_Standardized.xlsx' with columns: ${targetColumns} based on visual analysis.\n`;
+        } else {
+            analysisPrompt += `1. Analyze the uploaded technical file(s) (BOM, specifications).\n`;
+            analysisPrompt += `2. Create a 'BOM_Standardized.xlsx' with columns: ${targetColumns}.\n`;
+        }
+
+        analysisPrompt += `3. Create a 'data_summary.csv' of the main parts list.\n`;
+        analysisPrompt += `4. Extract key technical parameters and manufacturing requirements.\n`;
+
+        prompts.push(analysisPrompt);
 
         // Selected Documents
         for (const docType of selectedDocs) {
@@ -340,15 +326,13 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
 
         while (attempts < maxAttempts) {
             try {
-                const [sessionData, newMessages, newBlobs] = await Promise.all([
+                const [sessionData, newBlobs] = await Promise.all([
                     fetch(`${import.meta.env.VITE_API_URL}/api/sessions/${sessionId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     }).then(r => r.json()),
-                    ControllersChatService.listMessages(sessionId),
                     ControllersBlobsService.list(sessionId)
                 ]);
 
-                setMessages(newMessages);
                 setBlobs(newBlobs);
 
                 // Update selected session with newest data
@@ -412,23 +396,153 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
         }
     };
 
-    const renderEmptyState = () => (
-        <div className="flex flex-col items-center justify-center h-full p-12 border-2 border-dashed border-industrial-concrete bg-industrial-steel-900/20 rounded-sm group hover:border-industrial-copper-500/50 transition-colors">
-            <svg className="w-24 h-24 text-industrial-steel-600 mb-6 group-hover:text-industrial-copper-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <h3 className="industrial-headline text-2xl mb-2 text-center">Upload Technical Documents</h3>
-            <p className="text-industrial-steel-400 font-mono text-sm mb-8 text-center max-w-md">
-                Initialize session by uploading source files (BOMs, SOPs, Reports).
-                Supported formats: .xlsx, .csv, .pdf, .docx, .txt
-            </p>
-            <label className="industrial-btn px-8 py-3 cursor-pointer">
-                <span>Select File</span>
-                <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} multiple />
-            </label>
-            {uploading && <div className="mt-4 text-industrial-copper-500 font-mono text-xs uppercase animate-pulse">Uploading...</div>}
-        </div>
-    );
+    const renderEmptyState = () => {
+        if (!wizardStartType) {
+            return (
+                <div className="flex flex-col items-center justify-center min-h-[60vh] p-12 animate-in fade-in duration-700">
+                    <div className="text-center mb-12">
+                        <h3 className="industrial-headline text-3xl mb-4 uppercase tracking-widest text-white">Initialize Tech Transfer</h3>
+                        <p className="text-industrial-steel-400 font-mono text-sm uppercase tracking-widest">Select your starting point to begin the conversion process</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl">
+                        <button
+                            onClick={() => setWizardStartType('bom')}
+                            className="industrial-panel p-8 group hover:border-industrial-copper-500 transition-all flex flex-col items-center text-center relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 w-full h-1 bg-industrial-steel-800 group-hover:bg-industrial-copper-500 transition-colors"></div>
+                            <svg className="w-16 h-16 text-industrial-steel-600 mb-6 group-hover:text-industrial-copper-500 transition-colors group-hover:scale-110 duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="font-mono text-[10px] uppercase text-industrial-steel-500 mb-2 tracking-[0.2em]">Structured Data</span>
+                            <span className="text-xl font-bold text-neutral-200">UPLOAD BOM</span>
+                            <p className="text-xs text-industrial-steel-400 mt-4 leading-relaxed font-mono">Start with an existing Bill of Materials. Supports .xlsx, .csv, and legacy reports.</p>
+                        </button>
+
+                        <button
+                            onClick={() => setWizardStartType('description')}
+                            className="industrial-panel p-8 group hover:border-industrial-copper-500 transition-all flex flex-col items-center text-center relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 w-full h-1 bg-industrial-steel-800 group-hover:bg-industrial-copper-500 transition-colors"></div>
+                            <svg className="w-16 h-16 text-industrial-steel-600 mb-6 group-hover:text-industrial-copper-500 transition-colors group-hover:scale-110 duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            <span className="font-mono text-[10px] uppercase text-industrial-steel-500 mb-2 tracking-[0.2em]">Ideation Phase</span>
+                            <span className="text-xl font-bold text-neutral-200">DESCRIBE PRODUCT</span>
+                            <p className="text-xs text-industrial-steel-400 mt-4 leading-relaxed font-mono">No documentation? No problem. Describe your product and let AI architect the BOM.</p>
+                        </button>
+
+                        <button
+                            onClick={() => setWizardStartType('sketch')}
+                            className="industrial-panel p-8 group hover:border-industrial-copper-500 transition-all flex flex-col items-center text-center relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 left-0 w-full h-1 bg-industrial-steel-800 group-hover:bg-industrial-copper-500 transition-colors"></div>
+                            <svg className="w-16 h-16 text-industrial-steel-600 mb-6 group-hover:text-industrial-copper-500 transition-colors group-hover:scale-110 duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="font-mono text-[10px] uppercase text-industrial-steel-500 mb-2 tracking-[0.2em]">Visual Input</span>
+                            <span className="text-xl font-bold text-neutral-200">UPLOAD SKETCH</span>
+                            <p className="text-xs text-industrial-steel-400 mt-4 leading-relaxed font-mono">Analyze physical drawings, 2D blueprints, or whiteboard photos.</p>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] p-12 animate-in slide-in-from-bottom-4 duration-500">
+                <button
+                    onClick={() => setWizardStartType(null)}
+                    className="mb-8 text-industrial-steel-500 hover:text-industrial-copper-500 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest transition-colors group"
+                >
+                    <span className="group-hover:-translate-x-1 transition-transform">←</span> Return to Selection
+                </button>
+
+                <div className="industrial-panel p-12 max-w-2xl w-full border border-industrial-concrete bg-industrial-steel-900/20 rounded-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                        <div className="text-[120px] font-black font-mono leading-none">{wizardStartType.toUpperCase()}</div>
+                    </div>
+
+                    <div className="flex flex-col items-center text-center relative z-10">
+                        {wizardStartType === 'bom' && (
+                            <>
+                                <div className="w-20 h-20 rounded-full border border-industrial-copper-500/30 flex items-center justify-center mb-6">
+                                    <svg className="w-10 h-10 text-industrial-copper-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                </div>
+                                <h3 className="industrial-headline text-2xl mb-2">Upload Technical BOM</h3>
+                                <p className="text-industrial-steel-400 font-mono text-xs mb-8 max-w-md uppercase tracking-wide">Supported formats: .xlsx, .csv, .xls</p>
+                                <label className="industrial-btn px-12 py-4 cursor-pointer flex items-center gap-3">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                    <span>SELECT FILE</span>
+                                    <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} accept=".csv,.xlsx,.xls" />
+                                </label>
+                            </>
+                        )}
+
+                        {wizardStartType === 'sketch' && (
+                            <>
+                                <div className="w-20 h-20 rounded-full border border-industrial-copper-500/30 flex items-center justify-center mb-6">
+                                    <svg className="w-10 h-10 text-industrial-copper-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <h3 className="industrial-headline text-2xl mb-2">Process Sketch</h3>
+                                <p className="text-industrial-steel-400 font-mono text-xs mb-8 max-w-md uppercase tracking-wide">Upload a drawing or photo of your product concept.</p>
+                                <label className="industrial-btn px-12 py-4 cursor-pointer flex items-center gap-3">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                    <span>UPLOAD MEDIA</span>
+                                    <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} accept="image/*" />
+                                </label>
+                            </>
+                        )}
+
+                        {wizardStartType === 'description' && (
+                            <>
+                                <div className="w-20 h-20 rounded-full border border-industrial-copper-500/30 flex items-center justify-center mb-6">
+                                    <svg className="w-10 h-10 text-industrial-copper-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </div>
+                                <h3 className="industrial-headline text-2xl mb-2">Product Description</h3>
+                                <p className="text-industrial-steel-400 font-mono text-xs mb-6 max-w-md uppercase tracking-wide">Enter the technical specifications and components manually.</p>
+                                <textarea
+                                    value={productDescription}
+                                    onChange={(e) => setProductDescription(e.target.value)}
+                                    className="w-full h-48 industrial-input p-4 mb-8 text-sm rounded-sm resize-none focus:border-industrial-copper-500 transition-colors bg-black/40 font-mono"
+                                    placeholder="e.g. A portable medical ventilator with a brushless DC motor, aluminum housing, and integrated LCD display..."
+                                />
+                                <button
+                                    onClick={() => {
+                                        if (productDescription.length < 20) {
+                                            alert("Please provide a more detailed technical description.");
+                                            return;
+                                        }
+                                        setWizardStep(2);
+                                    }}
+                                    className="industrial-btn px-12 py-4 w-full flex items-center justify-center gap-3"
+                                >
+                                    <span>PROCEED TO DELIVERABLES</span>
+                                    <span className="text-xl">→</span>
+                                </button>
+                            </>
+                        )}
+
+                        {uploading && (
+                            <div className="mt-8 flex flex-col items-center">
+                                <div className="w-48 h-1 bg-industrial-steel-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-industrial-copper-500 animate-[progress_2s_infinite]"></div>
+                                </div>
+                                <div className="mt-2 text-industrial-copper-500 font-mono text-[10px] uppercase tracking-widest animate-pulse">
+                                    INGESTING SYSTEM ASSETS...
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const renderWorkbench = () => {
         const images = blobs.filter(b => b.content_type.startsWith('image/') || b.file_name.toLowerCase().endsWith('.png') || b.file_name.toLowerCase().endsWith('.jpg'));
@@ -844,7 +958,7 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                 <p className="font-mono uppercase tracking-wide text-sm">Select or Create a Session to Begin</p>
                             </div>
                         </div>
-                    ) : blobs.length === 0 ? (
+                    ) : (blobs.length === 0 && wizardStep === 1) ? (
                         renderEmptyState()
                     ) : (
                         renderWorkbench()
