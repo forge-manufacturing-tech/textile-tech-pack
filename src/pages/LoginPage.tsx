@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export function LoginPage() {
+    const [searchParams] = useSearchParams();
     const [isRegister, setIsRegister] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -12,10 +13,16 @@ export function LoginPage() {
     const { login, register, token } = useAuth();
     const navigate = useNavigate();
 
+    useEffect(() => {
+        if (searchParams.get('mode') === 'register') {
+            setIsRegister(true);
+        }
+    }, [searchParams]);
+
     // Navigate when token changes (successful login/register)
     useEffect(() => {
         if (token) {
-            navigate('/');
+            navigate('/dashboard');
         }
     }, [token, navigate]);
 

@@ -2,6 +2,34 @@ describe('Projects Management', () => {
     const password = 'TestPassword123!'
 
     beforeEach(() => {
+        // Mocks
+        cy.intercept('POST', '**/api/auth/register', {
+            statusCode: 200,
+            body: { token: 'mock-token', name: 'Test User' }
+        }).as('register')
+
+        cy.intercept('GET', '**/api/projects', {
+            statusCode: 200,
+            body: []
+        }).as('getProjects')
+
+        cy.intercept('POST', '**/api/projects', (req) => {
+            req.reply({
+                statusCode: 200,
+                body: { id: 'mock-project-id', name: req.body.name, description: req.body.description }
+            })
+        }).as('createProject')
+
+        cy.intercept('GET', '**/api/projects/*', {
+            statusCode: 200,
+            body: { id: 'mock-project-id', name: 'Test Project' }
+        }).as('getProject')
+
+        cy.intercept('GET', '**/api/sessions*', {
+            statusCode: 200,
+            body: []
+        }).as('getSessions')
+
         // Register and login before each test with unique email
         const email = `test-projects-${Date.now()}@example.com`
 
@@ -13,7 +41,7 @@ describe('Projects Management', () => {
         cy.get('button[type="submit"]').click()
 
         // Wait for redirect to complete
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/')
+        cy.url({ timeout: 20000 }).should('include', '/dashboard')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
         // Wait for page to fully load
         cy.contains(/no projects found/i, { timeout: 10000 })
@@ -28,6 +56,12 @@ describe('Projects Management', () => {
         const projectName = `Test Project ${Date.now()}`
         const projectDesc = 'Created by Cypress test'
 
+        // Mock re-fetch of projects after create
+        cy.intercept('GET', '**/api/projects', {
+            statusCode: 200,
+            body: [{ id: 'mock-project-id', name: projectName, description: projectDesc }]
+        }).as('getProjectsAfterCreate')
+
         cy.contains('+ New Project', { timeout: 10000 }).click()
         cy.get('input[type="text"]').first().should('be.visible')
         cy.get('input[type="text"]').first().type(projectName)
@@ -41,6 +75,18 @@ describe('Projects Management', () => {
 
     it('should navigate to project sessions', () => {
         const projectName = `Nav Test ${Date.now()}`
+
+        // Mock re-fetch of projects after create
+        cy.intercept('GET', '**/api/projects', {
+            statusCode: 200,
+            body: [{ id: 'mock-project-id', name: projectName }]
+        }).as('getProjectsAfterCreate')
+
+        // Mock project detail fetch on sessions page
+        cy.intercept('GET', '**/api/projects/*', {
+            statusCode: 200,
+            body: { id: 'mock-project-id', name: projectName }
+        }).as('getProjectDetail')
 
         // Create project
         cy.contains('+ New Project', { timeout: 10000 }).click()

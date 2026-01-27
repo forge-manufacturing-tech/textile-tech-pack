@@ -1,5 +1,15 @@
 describe('Authentication Flow', () => {
     beforeEach(() => {
+        cy.intercept('POST', '**/api/auth/login', {
+            statusCode: 200,
+            body: { token: 'mock-token', name: 'Mock User' }
+        }).as('loginRequest')
+
+        cy.intercept('POST', '**/api/auth/register', {
+            statusCode: 200,
+            body: { token: 'mock-token', name: 'Mock User' }
+        }).as('registerRequest')
+
         cy.visit('/login')
     })
 
@@ -20,6 +30,11 @@ describe('Authentication Flow', () => {
     })
 
     it('should show error on invalid login', () => {
+        cy.intercept('POST', '**/api/auth/login', {
+            statusCode: 401,
+            body: { message: 'Invalid credentials' }
+        }).as('loginError')
+
         cy.get('input[type="email"]').type('nonexistent@example.com')
         cy.get('input[type="password"]').type('wrongpassword')
         cy.get('button[type="submit"]').click()
@@ -49,7 +64,7 @@ describe('Authentication Flow', () => {
 
 
         // Should redirect to projects page (might take a moment)
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/')
+        cy.url({ timeout: 20000 }).should('include', '/dashboard')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
         cy.contains(email).should('be.visible')
     })
