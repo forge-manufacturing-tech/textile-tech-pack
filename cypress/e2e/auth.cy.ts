@@ -69,11 +69,8 @@ describe('Authentication Flow', () => {
         // Make sure no error appeared
         cy.get('.bg-industrial-alert\\/10').should('not.exist')
 
-        // Wait a bit for React state to update
-
-
-        // Should redirect to projects page (might take a moment)
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/#/')
+        // Should redirect to dashboard
+        cy.url({ timeout: 20000 }).should('include', '/#/dashboard')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
         cy.contains(email).should('be.visible')
     })

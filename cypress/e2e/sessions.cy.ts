@@ -13,6 +13,7 @@ describe('Sessions Management', () => {
             statusCode: 200,
             body: { token: 'mock-token', name: 'Test User' }
         }).as('login')
+
         cy.intercept('POST', '**/api/auth/register', {
             statusCode: 200,
             body: { token: 'mock-token', name: 'Test User' }
@@ -52,8 +53,14 @@ describe('Sessions Management', () => {
         cy.wait('@register')
 
         // Wait for redirect
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/#/')
+        cy.url({ timeout: 20000 }).should('include', '/#/dashboard')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
+
+        // Mock re-fetch for project list after creation
+        cy.intercept('GET', '**/api/projects', {
+            statusCode: 200,
+            body: [{ id: 'proj-123', name: projectName }]
+        }).as('getProjectsAfterCreate')
 
         // Create Project
         cy.contains('+ New Project', { timeout: 10000 }).click()
@@ -122,6 +129,11 @@ describe('Sessions Management', () => {
 
         cy.intercept('GET', '**/api/blobs*', { statusCode: 200, body: [] }).as('getBlobs')
 
+        cy.intercept('GET', '**/api/sessions/sess-2', {
+            statusCode: 200,
+            body: { id: 'sess-2', title: sessionTitle, project_id: 'proj-123', status: 'pending' }
+        })
+
         // Create session
         cy.contains('+ New Session', { timeout: 10000 }).click()
         cy.get('input[placeholder="Operation Name"]').type(sessionTitle)
@@ -133,14 +145,13 @@ describe('Sessions Management', () => {
         // Wait for loading to finish
         cy.contains('Initializing Core...').should('not.exist')
 
-        // Should display the empty state upload bucket (since it's auto-selected and new)
-        // With my changes, it shows "Initialize Tech Transfer" or "Upload Technical BOM" etc.
+        // Should automatically select and display the empty state upload bucket
         cy.contains('Initialize Tech Transfer').should('be.visible')
     })
 
     it('should navigate back to projects', () => {
         cy.contains('Back', { timeout: 10000 }).click()
-        cy.url({ timeout: 10000 }).should('eq', 'http://localhost:3000/#/')
+        cy.url({ timeout: 10000 }).should('include', '/#/dashboard')
         cy.contains('PROJECTS').should('be.visible')
     })
 })

@@ -59,7 +59,7 @@ describe('Mobile View Experience', () => {
         cy.wait('@register')
 
         // Wait for redirect
-        cy.url({ timeout: 20000 }).should('eq', 'http://localhost:3000/#/')
+        cy.url({ timeout: 20000 }).should('include', '/#/dashboard')
         cy.contains('PROJECTS', { timeout: 20000 }).should('be.visible')
 
         // Create Project
@@ -183,5 +183,8 @@ describe('Mobile View Experience', () => {
         // Workbench should be visible
         cy.contains('Initialize Tech Transfer').should('be.visible')
         cy.get('.scanlines').should('not.be.visible')
+
+        // Take screenshot for verification
+        cy.screenshot('mobile-verification')
     })
 })

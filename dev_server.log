@@ -1,9 +1,0 @@
-
-> interlock-frontend@0.0.0 dev
-> vite --host --port 3000
-
-
-  VITE v5.4.21  ready in 319 ms
-
-  ➜  Local:   http://localhost:3000/
-  ➜  Network: http://192.168.0.2:3000/

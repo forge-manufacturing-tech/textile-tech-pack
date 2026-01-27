@@ -437,7 +437,7 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                         >
                             <div className="absolute top-0 left-0 w-full h-1 bg-industrial-steel-800 group-hover:bg-industrial-copper-500 transition-colors"></div>
                             <svg className="w-16 h-16 text-industrial-steel-600 mb-6 group-hover:text-industrial-copper-500 transition-colors group-hover:scale-110 duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                             <span className="font-mono text-[10px] uppercase text-industrial-steel-500 mb-2 tracking-[0.2em]">Visual Input</span>
                             <span className="text-xl font-bold text-neutral-200">UPLOAD SKETCH</span>
@@ -988,8 +988,9 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                 .then((newSession) => {
                                     setShowCreateModal(false);
                                     setNewSessionTitle('');
-                                    loadProjectAndSessions();
-                                    setSelectedSession(newSession);
+                                    loadProjectAndSessions().then(() => {
+                                        setSelectedSession(newSession);
+                                    });
                                 });
                         }} className="space-y-4">
                             <input
