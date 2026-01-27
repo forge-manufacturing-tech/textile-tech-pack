@@ -975,10 +975,12 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                             e.preventDefault();
                             if (!projectId) return;
                             ControllersSessionsService.add({ title: newSessionTitle, content: '', project_id: projectId })
-                                .then(() => {
+                                .then((newSession) => {
                                     setShowCreateModal(false);
                                     setNewSessionTitle('');
-                                    loadProjectAndSessions();
+                                    loadProjectAndSessions().then(() => {
+                                        setSelectedSession(newSession);
+                                    });
                                 });
                         }} className="space-y-4">
                             <input

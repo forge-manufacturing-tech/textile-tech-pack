@@ -124,10 +124,7 @@ describe('Sessions Management', () => {
         cy.get('input[placeholder="Operation Name"]').type(sessionTitle)
         cy.contains('button', 'Initialize').click()
 
-        // Click on session
-        cy.contains(sessionTitle, { timeout: 10000 }).click()
-
-        // Should display the empty state upload bucket
+        // Should automatically select and display the empty state upload bucket
         cy.contains('Initialize Tech Transfer').should('be.visible')
     })
 
