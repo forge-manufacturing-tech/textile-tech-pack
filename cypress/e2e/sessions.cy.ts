@@ -133,4 +133,19 @@ describe('Sessions Management', () => {
         cy.url({ timeout: 10000 }).should('include', '/dashboard')
         cy.contains('PROJECTS').should('be.visible')
     })
+
+    it('should open external tools and load Xometry plugin', () => {
+        cy.contains('External Tools', { timeout: 10000 }).should('be.visible').click()
+        cy.contains('Xometry Manufacturing', { timeout: 10000 }).should('be.visible')
+
+        // Open the plugin
+        cy.contains('Xometry Manufacturing').click()
+        cy.contains('Xometry Instant Quoting Engine', { timeout: 10000 }).should('be.visible')
+
+        // Close the modal by clicking the backdrop
+        cy.get('.fixed.inset-0').click({ force: true, multiple: true }) // Force click because of stacking contexts maybe
+
+        // Verify closed
+        cy.contains('Xometry Instant Quoting Engine').should('not.exist')
+    })
 })

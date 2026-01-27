@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ControllersSessionsService, ControllersProjectsService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse } from '../api/generated';
 import { useAuth } from '../contexts/AuthContext';
+import { pluginRegistry } from '../plugins/registry';
+import { XometryPlugin } from '../plugins/catalog/XometryPlugin';
+import { PluginModal } from '../plugins/components/PluginModal';
+
+// Register default plugins
+pluginRegistry.register(XometryPlugin);
 
 export function SessionsPage() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -11,6 +17,8 @@ export function SessionsPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newSessionTitle, setNewSessionTitle] = useState('');
     const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
+    const [activePluginId, setActivePluginId] = useState<string | null>(null);
+    const [showToolsDropdown, setShowToolsDropdown] = useState(false);
 
     // State
     const [blobs, setBlobs] = useState<BlobResponse[]>([]);
@@ -917,6 +925,36 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                     <div className="flex items-center gap-4">
                         <button onClick={() => navigate('/dashboard')} className="text-industrial-steel-400 hover:text-industrial-copper-500 transition-colors font-mono text-sm uppercase">← Back</button>
                         <h1 className="industrial-headline text-xl">{project?.name} <span className="text-industrial-steel-600 mx-2">//</span> TECH TRANSFER SUITE</h1>
+
+                        {/* Plugin Tools Dropdown */}
+                        <div className="relative ml-4">
+                            <button
+                                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+                                onBlur={() => setTimeout(() => setShowToolsDropdown(false), 200)}
+                                className={`flex items-center gap-2 px-3 py-1 text-xs font-mono uppercase transition-all border rounded-sm ${showToolsDropdown ? 'text-industrial-copper-500 border-industrial-copper-500/30 bg-industrial-steel-800' : 'text-industrial-steel-400 border-transparent hover:text-industrial-copper-500 hover:border-industrial-copper-500/30'}`}
+                            >
+                                <span>External Tools</span>
+                                <svg className={`w-3 h-3 transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            {showToolsDropdown && (
+                                <div className="absolute top-full left-0 mt-1 w-56 bg-industrial-steel-900 border border-industrial-concrete rounded-sm shadow-xl z-50">
+                                    <div className="p-2 border-b border-industrial-concrete text-[10px] text-industrial-steel-500 uppercase font-mono">Available Integrations</div>
+                                    {pluginRegistry.getPlugins().map(p => (
+                                        <button
+                                            key={p.id}
+                                            onClick={() => {
+                                                setActivePluginId(p.id);
+                                                setShowToolsDropdown(false);
+                                            }}
+                                            className="w-full text-left px-4 py-3 text-xs font-mono text-industrial-steel-300 hover:bg-industrial-steel-800 hover:text-industrial-copper-500 transition-colors flex items-center gap-2"
+                                        >
+                                            {p.icon && <div className="w-4 h-4">{p.icon}</div>}
+                                            {p.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 industrial-btn rounded-sm text-xs">+ New Session</button>
                 </div>
@@ -998,6 +1036,25 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Plugin Modal */}
+            {activePluginId && (
+                (() => {
+                    const plugin = pluginRegistry.getPlugin(activePluginId);
+                    if (!plugin) return null;
+                    return (
+                        <PluginModal
+                            plugin={plugin}
+                            context={{
+                                project,
+                                session: selectedSession,
+                                blobs
+                            }}
+                            onClose={() => setActivePluginId(null)}
+                        />
+                    );
+                })()
             )}
         </div>
     );
