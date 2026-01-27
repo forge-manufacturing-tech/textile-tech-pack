@@ -2,6 +2,34 @@ describe('Projects Management', () => {
     const password = 'TestPassword123!'
 
     beforeEach(() => {
+        // Mocks
+        cy.intercept('POST', '**/api/auth/register', {
+            statusCode: 200,
+            body: { token: 'mock-token', name: 'Test User' }
+        }).as('register')
+
+        cy.intercept('GET', '**/api/projects', {
+            statusCode: 200,
+            body: []
+        }).as('getProjects')
+
+        cy.intercept('POST', '**/api/projects', (req) => {
+            req.reply({
+                statusCode: 200,
+                body: { id: 'mock-project-id', name: req.body.name, description: req.body.description }
+            })
+        }).as('createProject')
+
+        cy.intercept('GET', '**/api/projects/*', {
+            statusCode: 200,
+            body: { id: 'mock-project-id', name: 'Test Project' }
+        }).as('getProject')
+
+        cy.intercept('GET', '**/api/sessions*', {
+            statusCode: 200,
+            body: []
+        }).as('getSessions')
+
         // Register and login before each test with unique email
         const email = `test-projects-${Date.now()}@example.com`
 

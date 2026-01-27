@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
+import { HomePage } from './pages/HomePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { SessionsPage } from './pages/SessionsPage';
 
@@ -38,6 +39,14 @@ function AppRoutes() {
     return (
         <Routes>
             <Route
+                path="/"
+                element={
+                    <PublicRoute>
+                        <HomePage />
+                    </PublicRoute>
+                }
+            />
+            <Route
                 path="/login"
                 element={
                     <PublicRoute>
@@ -46,7 +55,7 @@ function AppRoutes() {
                 }
             />
             <Route
-                path="/"
+                path="/dashboard"
                 element={
                     <ProtectedRoute>
                         <ProjectsPage />

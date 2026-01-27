@@ -172,7 +172,7 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
             setSessions(sessionsData);
         } catch (error: any) {
             if (error.status === 401) logout();
-            else if (error.status === 403 || error.status === 404) navigate('/');
+            else if (error.status === 403 || error.status === 404) navigate('/dashboard');
         } finally {
             setLoading(false);
         }
@@ -915,7 +915,7 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
             <header className="border-b border-industrial-concrete bg-industrial-steel-900/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => navigate('/')} className="text-industrial-steel-400 hover:text-industrial-copper-500 transition-colors font-mono text-sm uppercase">← Back</button>
+                        <button onClick={() => navigate('/dashboard')} className="text-industrial-steel-400 hover:text-industrial-copper-500 transition-colors font-mono text-sm uppercase">← Back</button>
                         <h1 className="industrial-headline text-xl">{project?.name} <span className="text-industrial-steel-600 mx-2">//</span> TECH TRANSFER SUITE</h1>
                     </div>
                     <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 industrial-btn rounded-sm text-xs">+ New Session</button>
