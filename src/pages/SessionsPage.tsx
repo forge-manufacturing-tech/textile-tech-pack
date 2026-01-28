@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ControllersSessionsService, ControllersProjectsService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse } from '../api/generated';
 import { useAuth } from '../contexts/AuthContext';
+import { ChatInterface } from '../components/ChatInterface';
 
 export function SessionsPage() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -11,6 +12,10 @@ export function SessionsPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newSessionTitle, setNewSessionTitle] = useState('');
     const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
+
+    // View Mode & Collaboration State
+    const [viewMode, setViewMode] = useState<'designer' | 'manufacturer'>('designer');
+    const [comments, setComments] = useState<Record<string, string[]>>({});
 
     // State
     const [blobs, setBlobs] = useState<BlobResponse[]>([]);
@@ -138,7 +143,56 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
         }
     }, [selectedSession?.id]); // Use ID to avoid re-triggering when status changes via setPoll
 
+    // Load Comments from Session Content
+    useEffect(() => {
+        if (selectedSession?.content) {
+            try {
+                const parsed = JSON.parse(selectedSession.content);
+                if (parsed.comments) {
+                    setComments(parsed.comments);
+                }
+            } catch (e) {
+                // Ignore if not JSON or invalid format
+            }
+        } else {
+            setComments({});
+        }
+    }, [selectedSession?.id, selectedSession?.content]);
 
+    const handleAddComment = async (blobId: string, text: string) => {
+        if (!selectedSession || !text.trim()) return;
+
+        const newComments = {
+            ...comments,
+            [blobId]: [...(comments[blobId] || []), text.trim()]
+        };
+        setComments(newComments);
+
+        // Persist to backend
+        try {
+            // Merge with existing content to prevent data loss
+            let existingContent: any = {};
+            try {
+                existingContent = selectedSession.content ? JSON.parse(selectedSession.content) : {};
+            } catch (e) {
+                // If existing content is not JSON, preserve it in _raw field if needed, or assume empty object if it was just a string we can overwrite safely
+                // For this app, we assume content is either empty or JSON.
+                console.warn('Session content was not valid JSON, initializing new structure');
+            }
+
+            const payloadObj = { ...existingContent, comments: newComments };
+            const contentPayload = JSON.stringify(payloadObj);
+
+            // Update backend
+            await ControllersSessionsService.update(selectedSession.id, { content: contentPayload });
+
+            // Optimistically update local session content to avoid effect reverting changes if session obj updates
+            setSelectedSession(prev => prev ? { ...prev, content: contentPayload } : null);
+        } catch (error) {
+            console.error('Failed to save comment:', error);
+            alert('Failed to save comment');
+        }
+    };
 
     // Load CSV Content
     useEffect(() => {
@@ -557,6 +611,36 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
 
         const getToken = () => localStorage.getItem('token');
 
+        const renderComments = (blobId: string) => (
+            <div className="p-3 bg-industrial-steel-900/80 border-t border-industrial-concrete">
+                {(comments[blobId]?.length || 0) > 0 && (
+                    <div className="space-y-2 mb-3">
+                        <h5 className="text-[9px] font-mono uppercase text-industrial-steel-500 tracking-wider">Comments</h5>
+                        {comments[blobId].map((c, i) => (
+                            <div key={i} className="text-[10px] text-industrial-steel-300 font-mono pl-2 border-l-2 border-industrial-copper-500/50">
+                                {c}
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {viewMode === 'designer' && (
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            placeholder="Add comment..."
+                            className="flex-1 industrial-input px-2 py-1 text-[10px] rounded-sm font-mono"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleAddComment(blobId, e.currentTarget.value);
+                                    e.currentTarget.value = '';
+                                }
+                            }}
+                        />
+                    </div>
+                )}
+            </div>
+        );
+
         return (
             <div className="flex flex-col h-full max-w-6xl mx-auto w-full p-6 gap-6">
 
@@ -573,25 +657,24 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                 <h4 className="text-[10px] text-industrial-steel-500 font-mono uppercase mb-2">Visualizations</h4>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {images.map(img => (
-                                        <div key={img.id} className="relative group border border-industrial-concrete bg-black/20 rounded-sm overflow-hidden">
-                                            <img
-                                                src={`${import.meta.env.VITE_API_URL}/api/blobs/${img.id}/download?token=${getToken()}`} // Note: In real app, might need a better way to pass token for img src if not cookie-based
-                                                /* If token is header-only, direct src won't work easily w/o a proxy or signed URL. 
-                                                   For this demo, assuming standard download route works or we fetch blob url.
-                                                   Better check: fetch blob and create object URL. */
-                                                className="w-full h-48 object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                                                alt={img.file_name}
-                                                // Fallback to fetch-based load if Auth header needed (implemented below)
-                                                onError={(e) => {
-                                                    const target = e.target as HTMLImageElement;
-                                                    fetch(`${import.meta.env.VITE_API_URL}/api/blobs/${img.id}/download`, { headers: { 'Authorization': `Bearer ${getToken()}` } })
-                                                        .then(r => r.blob())
-                                                        .then(b => target.src = URL.createObjectURL(b));
-                                                }}
-                                            />
-                                            <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/70 text-[10px] font-mono text-white truncate">
-                                                {img.file_name}
+                                        <div key={img.id} className="border border-industrial-concrete bg-black/20 rounded-sm overflow-hidden flex flex-col">
+                                            <div className="relative group">
+                                                <img
+                                                    src={`${import.meta.env.VITE_API_URL}/api/blobs/${img.id}/download?token=${getToken()}`}
+                                                    className="w-full h-48 object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                                    alt={img.file_name}
+                                                    onError={(e) => {
+                                                        const target = e.target as HTMLImageElement;
+                                                        fetch(`${import.meta.env.VITE_API_URL}/api/blobs/${img.id}/download`, { headers: { 'Authorization': `Bearer ${getToken()}` } })
+                                                            .then(r => r.blob())
+                                                            .then(b => target.src = URL.createObjectURL(b));
+                                                    }}
+                                                />
+                                                <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/70 text-[10px] font-mono text-white truncate">
+                                                    {img.file_name}
+                                                </div>
                                             </div>
+                                            {renderComments(img.id)}
                                         </div>
                                     ))}
                                 </div>
@@ -627,6 +710,7 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                                     </tbody>
                                                 </table>
                                             </div>
+                                            {renderComments(csv.id)}
                                         </div>
                                     ))}
                                 </div>
@@ -641,42 +725,45 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                     {documents.map(doc => {
                                         const isPdf = doc.content_type === 'application/pdf' || doc.file_name.toLowerCase().endsWith('.pdf');
                                         return (
-                                            <div key={doc.id} className="border border-industrial-concrete bg-industrial-steel-900/50 flex flex-col h-96 relative group">
+                                            <div key={doc.id} className="border border-industrial-concrete bg-industrial-steel-900/50 flex flex-col min-h-96 relative group">
                                                 <div className="bg-industrial-steel-800/50 px-3 py-1 flex justify-between items-center border-b border-industrial-concrete">
                                                     <span className="text-[10px] font-mono font-bold text-industrial-steel-300 truncate max-w-[200px]">{doc.file_name}</span>
                                                     <button onClick={() => handleDownload(doc)} className="text-[10px] text-industrial-copper-500 hover:underline">Download</button>
                                                 </div>
 
-                                                {isPdf ? (
-                                                    <iframe
-                                                        src={`${import.meta.env.VITE_API_URL}/api/blobs/${doc.id}/download?token=${getToken()}`}
-                                                        className="w-full flex-1"
-                                                        title={doc.file_name}
-                                                        onLoad={(e) => {
-                                                            const iframe = e.target as HTMLIFrameElement;
-                                                            if (!iframe.src || iframe.src === 'about:blank') {
-                                                                fetch(`${import.meta.env.VITE_API_URL}/api/blobs/${doc.id}/download`, { headers: { 'Authorization': `Bearer ${getToken()}` } })
-                                                                    .then(r => r.blob())
-                                                                    .then(b => iframe.src = URL.createObjectURL(b));
-                                                            }
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-industrial-steel-950/30">
-                                                        <div className="w-16 h-16 rounded bg-blue-900/20 flex items-center justify-center border border-blue-500/30">
-                                                            <span className="text-2xl">W</span>
+                                                <div className="flex-1 flex flex-col h-96">
+                                                    {isPdf ? (
+                                                        <iframe
+                                                            src={`${import.meta.env.VITE_API_URL}/api/blobs/${doc.id}/download?token=${getToken()}`}
+                                                            className="w-full flex-1"
+                                                            title={doc.file_name}
+                                                            onLoad={(e) => {
+                                                                const iframe = e.target as HTMLIFrameElement;
+                                                                if (!iframe.src || iframe.src === 'about:blank') {
+                                                                    fetch(`${import.meta.env.VITE_API_URL}/api/blobs/${doc.id}/download`, { headers: { 'Authorization': `Bearer ${getToken()}` } })
+                                                                        .then(r => r.blob())
+                                                                        .then(b => iframe.src = URL.createObjectURL(b));
+                                                                }
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-industrial-steel-950/30">
+                                                            <div className="w-16 h-16 rounded bg-blue-900/20 flex items-center justify-center border border-blue-500/30">
+                                                                <span className="text-2xl">W</span>
+                                                            </div>
+                                                            <div className="text-center px-4">
+                                                                <p className="text-xs text-industrial-steel-400 font-mono mb-2">Word Document Preview Unavailable</p>
+                                                                <button
+                                                                    onClick={() => handleDownload(doc)}
+                                                                    className="px-4 py-2 bg-industrial-steel-800 hover:bg-industrial-steel-700 border border-industrial-concrete rounded-sm text-xs text-industrial-copper-500 font-mono"
+                                                                >
+                                                                    Download to View
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-center px-4">
-                                                            <p className="text-xs text-industrial-steel-400 font-mono mb-2">Word Document Preview Unavailable</p>
-                                                            <button
-                                                                onClick={() => handleDownload(doc)}
-                                                                className="px-4 py-2 bg-industrial-steel-800 hover:bg-industrial-steel-700 border border-industrial-concrete rounded-sm text-xs text-industrial-copper-500 font-mono"
-                                                            >
-                                                                Download to View
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
+                                                {renderComments(doc.id)}
                                             </div>
                                         );
                                     })}
@@ -929,6 +1016,24 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                         </button>
                         <h1 className="industrial-headline text-xl">{project?.name} <span className="text-industrial-steel-600 mx-2">//</span> TECH TRANSFER SUITE</h1>
                     </div>
+
+                    {selectedSession && (
+                        <div className="flex bg-industrial-steel-900 border border-industrial-concrete rounded-sm p-0.5">
+                            <button
+                                onClick={() => setViewMode('designer')}
+                                className={`px-4 py-1.5 text-[10px] uppercase font-mono tracking-widest transition-all rounded-sm ${viewMode === 'designer' ? 'bg-industrial-copper-500 text-white shadow-glow-copper/20' : 'text-industrial-steel-500 hover:text-industrial-steel-300'}`}
+                            >
+                                Designer
+                            </button>
+                            <button
+                                onClick={() => setViewMode('manufacturer')}
+                                className={`px-4 py-1.5 text-[10px] uppercase font-mono tracking-widest transition-all rounded-sm ${viewMode === 'manufacturer' ? 'bg-industrial-copper-500 text-white shadow-glow-copper/20' : 'text-industrial-steel-500 hover:text-industrial-steel-300'}`}
+                            >
+                                Manufacturer
+                            </button>
+                        </div>
+                    )}
+
                     <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 industrial-btn rounded-sm text-xs">+ New Session</button>
                 </div>
             </header>
@@ -969,10 +1074,23 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                 <p className="font-mono uppercase tracking-wide text-sm">Select or Create a Session to Begin</p>
                             </div>
                         </div>
-                    ) : (blobs.length === 0 && wizardStep === 1) ? (
-                        renderEmptyState()
                     ) : (
-                        renderWorkbench()
+                        <div className="h-full flex flex-col">
+                            {viewMode === 'manufacturer' ? (
+                                <div className="flex-1 flex overflow-hidden">
+                                    <div className="flex-1 overflow-y-auto">
+                                        {(blobs.length === 0 && wizardStep === 1) ? renderEmptyState() : renderWorkbench()}
+                                    </div>
+                                    <div className="w-[400px] border-l border-industrial-concrete bg-industrial-steel-900/50 flex flex-col h-full border-l-2">
+                                        <ChatInterface sessionId={selectedSession.id} blobs={blobs} onRefreshBlobs={() => loadSessionData(selectedSession.id)} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex-1 overflow-y-auto">
+                                    {(blobs.length === 0 && wizardStep === 1) ? renderEmptyState() : renderWorkbench()}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
