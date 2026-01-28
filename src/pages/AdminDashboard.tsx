@@ -9,6 +9,7 @@ export function AdminDashboard() {
     const [showAddUserModal, setShowAddUserModal] = useState(false);
     const [showResetModal, setShowResetModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null);
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
     // Form states
     const [newUserEmail, setNewUserEmail] = useState('');
@@ -94,6 +95,55 @@ export function AdminDashboard() {
         }
     };
 
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedUserIds(users.map(u => u.pid));
+        } else {
+            setSelectedUserIds([]);
+        }
+    };
+
+    const handleSelectUser = (userId: string) => {
+        setSelectedUserIds(prev =>
+            prev.includes(userId)
+                ? prev.filter(id => id !== userId)
+                : [...prev, userId]
+        );
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+            return;
+        }
+        try {
+            await ControllersAdminService.deleteUser(userId);
+            setSelectedUserIds(prev => prev.filter(id => id !== userId));
+            loadUsers();
+        } catch (error) {
+            console.error('Failed to delete user', error);
+            alert('Failed to delete user');
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (!confirm(`Are you sure you want to delete ${selectedUserIds.length} users? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            // Delete sequentially to avoid overwhelming the server (or parallel if preferred)
+            // Using Promise.all for parallel deletion as it's usually better for UX if server handles it
+            await Promise.all(selectedUserIds.map(id => ControllersAdminService.deleteUser(id)));
+            setSelectedUserIds([]);
+            loadUsers();
+            alert('Users deleted successfully');
+        } catch (error) {
+            console.error('Failed to delete users', error);
+            alert('Failed to delete some users');
+            loadUsers(); // Reload to see who was deleted
+        }
+    };
+
     const openResetModal = (user: UserResponse) => {
         setSelectedUser(user);
         setShowResetModal(true);
@@ -141,12 +191,22 @@ export function AdminDashboard() {
                         <h2 className="industrial-headline text-2xl mb-2">USER MANAGEMENT</h2>
                         <p className="text-industrial-steel-400 text-sm font-mono">System administration and user control</p>
                     </div>
-                    <button
-                        onClick={() => setShowAddUserModal(true)}
-                        className="px-6 py-2 industrial-btn rounded-sm font-medium"
-                    >
-                        + Add User
-                    </button>
+                    <div className="flex gap-2">
+                        {selectedUserIds.length > 0 && (
+                            <button
+                                onClick={handleBulkDelete}
+                                className="px-6 py-2 bg-red-900/50 hover:bg-red-900/70 border border-red-800 text-red-200 rounded-sm font-medium transition-colors uppercase tracking-wide text-sm"
+                            >
+                                Delete Selected ({selectedUserIds.length})
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setShowAddUserModal(true)}
+                            className="px-6 py-2 industrial-btn rounded-sm font-medium"
+                        >
+                            + Add User
+                        </button>
+                    </div>
                 </div>
 
                 {/* Users Table */}
@@ -154,6 +214,14 @@ export function AdminDashboard() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-industrial-steel-900 border-b border-industrial-concrete text-xs uppercase tracking-wider text-industrial-steel-400">
+                                <th className="p-4 w-12 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={users.length > 0 && selectedUserIds.length === users.length}
+                                        onChange={handleSelectAll}
+                                        className="rounded border-industrial-concrete bg-industrial-steel-800 text-industrial-copper-500 focus:ring-industrial-copper-500/50"
+                                    />
+                                </th>
                                 <th className="p-4 font-mono">Name</th>
                                 <th className="p-4 font-mono">Email</th>
                                 <th className="p-4 font-mono">Role</th>
@@ -164,6 +232,14 @@ export function AdminDashboard() {
                         <tbody className="divide-y divide-industrial-concrete/30">
                             {users.map((u) => (
                                 <tr key={u.pid} className="hover:bg-industrial-steel-800/50 transition-colors">
+                                    <td className="p-4 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedUserIds.includes(u.pid)}
+                                            onChange={() => handleSelectUser(u.pid)}
+                                            className="rounded border-industrial-concrete bg-industrial-steel-800 text-industrial-copper-500 focus:ring-industrial-copper-500/50"
+                                        />
+                                    </td>
                                     <td className="p-4 font-medium text-neutral-200">{u.name}</td>
                                     <td className="p-4 font-mono text-sm text-industrial-steel-400">{u.email}</td>
                                     <td className="p-4">
@@ -200,6 +276,13 @@ export function AdminDashboard() {
                                                 Demote
                                             </button>
                                         )}
+                                        <button
+                                            onClick={() => handleDeleteUser(u.pid)}
+                                            className="px-3 py-1 text-xs bg-industrial-steel-800 hover:bg-red-900/30 hover:text-red-400 text-industrial-steel-300 border border-industrial-concrete hover:border-red-800/50 rounded-sm transition-colors uppercase"
+                                            title="Delete User"
+                                        >
+                                            Delete
+                                        </button>
                                     </td>
                                 </tr>
                             ))}

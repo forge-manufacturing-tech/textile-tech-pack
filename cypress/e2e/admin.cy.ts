@@ -166,4 +166,80 @@ describe('Admin Dashboard', () => {
 
     cy.wait('@demoteUser');
   });
+
+  it('should delete a user', () => {
+    cy.intercept('POST', '/api/auth/login', {
+        statusCode: 200,
+        body: { token: adminToken, name: adminPayload.name, pid: adminPayload.pid, is_verified: true }
+    }).as('loginAdmin');
+
+    cy.intercept('GET', '/api/admin/users', {
+        statusCode: 200,
+        body: [
+            { name: 'User To Delete', email: 'delete@example.com', role: 'user', pid: 'delete-pid', id: 4, created_at: '2023-01-04' }
+        ]
+    }).as('getUsers');
+
+    cy.intercept('DELETE', '/api/admin/users/delete-pid', {
+        statusCode: 200,
+        body: {}
+    }).as('deleteUser');
+
+    cy.visit('/login');
+    cy.get('input[type="email"]').type('admin@example.com');
+    cy.get('input[type="password"]').type('password');
+    cy.get('button[type="submit"]').click();
+    cy.wait('@loginAdmin');
+
+    cy.visit('/admin');
+    cy.wait('@getUsers');
+
+    cy.contains('tr', 'User To Delete').within(() => {
+        cy.get('button[title="Delete User"]').click();
+    });
+
+    // Confirm dialog
+    cy.on('window:confirm', () => true);
+
+    cy.wait('@deleteUser');
+  });
+
+  it('should bulk delete users', () => {
+    cy.intercept('POST', '/api/auth/login', {
+        statusCode: 200,
+        body: { token: adminToken, name: adminPayload.name, pid: adminPayload.pid, is_verified: true }
+    }).as('loginAdmin');
+
+    cy.intercept('GET', '/api/admin/users', {
+        statusCode: 200,
+        body: [
+            { name: 'User 1', email: 'u1@example.com', role: 'user', pid: 'u1-pid', id: 10, created_at: '2023-01-10' },
+            { name: 'User 2', email: 'u2@example.com', role: 'user', pid: 'u2-pid', id: 11, created_at: '2023-01-11' }
+        ]
+    }).as('getUsers');
+
+    cy.intercept('DELETE', '/api/admin/users/u1-pid', { statusCode: 200, body: {} }).as('deleteU1');
+    cy.intercept('DELETE', '/api/admin/users/u2-pid', { statusCode: 200, body: {} }).as('deleteU2');
+
+    cy.visit('/login');
+    cy.get('input[type="email"]').type('admin@example.com');
+    cy.get('input[type="password"]').type('password');
+    cy.get('button[type="submit"]').click();
+    cy.wait('@loginAdmin');
+
+    cy.visit('/admin');
+    cy.wait('@getUsers');
+
+    // Select all
+    cy.get('thead input[type="checkbox"]').click();
+
+    // Click delete selected
+    cy.contains('Delete Selected').click();
+
+    // Confirm dialog
+    cy.on('window:confirm', () => true);
+
+    cy.wait('@deleteU1');
+    cy.wait('@deleteU2');
+  });
 });
