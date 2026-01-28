@@ -7,8 +7,8 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "test": "cypress run",
-        "test:open": "cypress open"
+        "test": "npx cypress run",
+        "test:open": "npx cypress open"
     },
     "devDependencies": {
         "@types/jest": "^30.0.0",

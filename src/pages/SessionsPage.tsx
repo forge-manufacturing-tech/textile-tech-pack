@@ -915,7 +915,18 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
             <header className="border-b border-industrial-concrete bg-industrial-steel-900/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => navigate('/dashboard')} className="text-industrial-steel-400 hover:text-industrial-copper-500 transition-colors font-mono text-sm uppercase">← Back</button>
+                        <button
+                            onClick={() => {
+                                if (selectedSession && window.innerWidth < 1024) {
+                                    setSelectedSession(null);
+                                } else {
+                                    navigate('/dashboard');
+                                }
+                            }}
+                            className="text-industrial-steel-400 hover:text-industrial-copper-500 transition-colors font-mono text-sm uppercase"
+                        >
+                            ← Back
+                        </button>
                         <h1 className="industrial-headline text-xl">{project?.name} <span className="text-industrial-steel-600 mx-2">//</span> TECH TRANSFER SUITE</h1>
                     </div>
                     <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 industrial-btn rounded-sm text-xs">+ New Session</button>
@@ -924,7 +935,7 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Minimal History Sidebar */}
-                <div className="w-64 border-r border-industrial-concrete bg-industrial-steel-900/50 hidden lg:block overflow-y-auto scanlines">
+                <div className={`border-r border-industrial-concrete bg-industrial-steel-900/50 overflow-y-auto scanlines ${selectedSession ? 'hidden lg:block w-64' : 'w-full lg:w-64 block'}`}>
                     <div className="p-4">
                         <h2 className="text-[10px] font-bold text-industrial-steel-500 uppercase tracking-widest mb-4 font-mono">History</h2>
                         {sessions.length === 0 ? (
@@ -951,7 +962,7 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                 </div>
 
                 {/* Main Content */}
-                <div className="flex-1 bg-industrial-steel-950 overflow-y-auto relative">
+                <div className={`flex-1 bg-industrial-steel-950 overflow-y-auto relative ${selectedSession ? 'block' : 'hidden lg:block'}`}>
                     {!selectedSession ? (
                         <div className="flex items-center justify-center h-full">
                             <div className="text-center text-industrial-steel-500">
