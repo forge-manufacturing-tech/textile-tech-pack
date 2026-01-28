@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ControllersChatService, MessageResponse, BlobResponse } from '../api/generated';
+import { ThreeJSRenderer } from './ThreeJSRenderer';
 
 interface ChatInterfaceProps {
     sessionId: string;
     blobs: BlobResponse[];
     onRefreshBlobs?: () => void;
+    initialMessage?: string;
 }
 
-export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage }: ChatInterfaceProps & { initialMessage?: string }) {
+export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<MessageResponse[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -84,6 +86,43 @@ export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage
         }
     };
 
+    const renderMessageContent = (content: string) => {
+        const parts = [];
+        const regex = /```(?:javascript|js)?\n([\s\S]*?)```/g;
+        let lastIndex = 0;
+        let match;
+
+        while ((match = regex.exec(content)) !== null) {
+            // Text before code
+            if (match.index > lastIndex) {
+                parts.push(<span key={`text-${lastIndex}`}>{content.substring(lastIndex, match.index)}</span>);
+            }
+
+            const code = match[1];
+            // Render the code block itself
+            parts.push(
+                <div key={`code-${match.index}`} className="my-2 p-2 bg-black/50 border border-industrial-concrete/30 text-xs overflow-x-auto custom-scrollbar">
+                    <pre>{code}</pre>
+                </div>
+            );
+
+            // If it looks like Three.js code, render the visualizer
+            if (code.includes('THREE.') || code.includes('scene.add')) {
+                parts.push(<ThreeJSRenderer key={`three-${match.index}`} code={code} />);
+            }
+
+            lastIndex = regex.lastIndex;
+        }
+
+        // Remaining text
+        if (lastIndex < content.length) {
+            parts.push(<span key={`text-${lastIndex}`}>{content.substring(lastIndex)}</span>);
+        }
+
+        if (parts.length === 0) return content;
+        return parts;
+    };
+
     return (
         <div className="flex flex-col h-full industrial-panel rounded-sm overflow-hidden border-industrial-copper-500/20 shadow-glow-copper/5">
             {/* Chat Header / Context */}
@@ -135,7 +174,7 @@ export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage
                                 </div>
                             </div>
                             <div className="text-sm whitespace-pre-wrap font-mono leading-relaxed tracking-tight">
-                                {msg.content}
+                                {renderMessageContent(msg.content)}
                             </div>
                         </div>
                     </div>

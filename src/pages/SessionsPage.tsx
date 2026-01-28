@@ -4,6 +4,29 @@ import { ControllersSessionsService, ControllersProjectsService, ControllersBlob
 import { useAuth } from '../contexts/AuthContext';
 import { ChatInterface } from '../components/ChatInterface';
 
+const THREE_JS_SYSTEM_PROMPT = `
+[SYSTEM: 3D_VISUALIZATION_CAPABILITY]
+You are an AI assistant capable of generating 3D visualizations.
+If the user asks for a 3D figure, visualization, or model, generate JavaScript code using the 'three' library (available as 'THREE').
+The code should:
+1. Initialize a scene, camera, and renderer.
+2. Append the renderer's domElement to 'container' (a provided HTMLElement).
+3. Handle animation loop if necessary.
+4. Wrap the code in a markdown code block tagged 'javascript'.
+
+Example:
+\`\`\`javascript
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(container.clientWidth, container.clientHeight);
+container.appendChild(renderer.domElement);
+// ... add objects ...
+function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
+animate();
+\`\`\`
+`;
+
 export function SessionsPage() {
     const { projectId } = useParams<{ projectId: string }>();
     const [project, setProject] = useState<ProjectResponse | null>(null);
@@ -1082,7 +1105,12 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                         {(blobs.length === 0 && wizardStep === 1) ? renderEmptyState() : renderWorkbench()}
                                     </div>
                                     <div className="w-[400px] border-l border-industrial-concrete bg-industrial-steel-900/50 flex flex-col h-full border-l-2">
-                                        <ChatInterface sessionId={selectedSession.id} blobs={blobs} onRefreshBlobs={() => loadSessionData(selectedSession.id)} />
+                                        <ChatInterface
+                                            sessionId={selectedSession.id}
+                                            blobs={blobs}
+                                            onRefreshBlobs={() => loadSessionData(selectedSession.id)}
+                                            initialMessage={THREE_JS_SYSTEM_PROMPT}
+                                        />
                                     </div>
                                 </div>
                             ) : (
