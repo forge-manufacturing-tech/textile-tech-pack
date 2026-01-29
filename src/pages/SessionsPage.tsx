@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ControllersSessionsService, ControllersProjectsService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse } from '../api/generated';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,6 +27,14 @@ export function SessionsPage() {
     const [targetColumns, setTargetColumns] = useState('Part Number, Description, Quantity, Manufacturer, Price');
     const [wizardStartType, setWizardStartType] = useState<'bom' | 'description' | 'sketch' | null>(null);
     const [productDescription, setProductDescription] = useState('');
+
+    // Chat panel resize state
+    const [chatPanelWidth, setChatPanelWidth] = useState(() => {
+        const saved = localStorage.getItem('chatPanelWidth');
+        return saved ? parseInt(saved, 10) : 400;
+    });
+    const [isResizing, setIsResizing] = useState(false);
+    const resizeRef = useRef<HTMLDivElement>(null);
 
     const DOC_TYPES = [
         "Production",
@@ -193,6 +201,38 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
             alert('Failed to save comment');
         }
     };
+
+    // Chat panel resize handlers
+    const handleResizeStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+    }, []);
+
+    useEffect(() => {
+        const handleResizeMove = (e: MouseEvent) => {
+            if (!isResizing) return;
+            const newWidth = window.innerWidth - e.clientX;
+            const clampedWidth = Math.min(Math.max(newWidth, 280), 800);
+            setChatPanelWidth(clampedWidth);
+        };
+
+        const handleResizeEnd = () => {
+            if (isResizing) {
+                setIsResizing(false);
+                localStorage.setItem('chatPanelWidth', chatPanelWidth.toString());
+            }
+        };
+
+        if (isResizing) {
+            document.addEventListener('mousemove', handleResizeMove);
+            document.addEventListener('mouseup', handleResizeEnd);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleResizeMove);
+            document.removeEventListener('mouseup', handleResizeEnd);
+        };
+    }, [isResizing, chatPanelWidth]);
 
     // Load CSV Content
     useEffect(() => {
@@ -1081,7 +1121,15 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                     <div className="flex-1 overflow-y-auto">
                                         {(blobs.length === 0 && wizardStep === 1) ? renderEmptyState() : renderWorkbench()}
                                     </div>
-                                    <div className="w-[400px] border-l border-industrial-concrete bg-industrial-steel-900/50 flex flex-col h-full border-l-2">
+                                    <div
+                                        ref={resizeRef}
+                                        className="border-l border-industrial-concrete bg-industrial-steel-900/50 flex flex-col h-full relative"
+                                        style={{ width: `${chatPanelWidth}px` }}
+                                    >
+                                        <div
+                                            onMouseDown={handleResizeStart}
+                                            className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize z-10 transition-colors hover:bg-industrial-copper-500/50 ${isResizing ? 'bg-industrial-copper-500' : 'bg-industrial-copper-500/20'}`}
+                                        />
                                         <ChatInterface sessionId={selectedSession.id} blobs={blobs} onRefreshBlobs={() => loadSessionData(selectedSession.id)} />
                                     </div>
                                 </div>
