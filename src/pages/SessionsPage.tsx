@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ControllersSessionsService, ControllersProjectsService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse } from '../api/generated';
 import { useAuth } from '../contexts/AuthContext';
 import { ChatInterface } from '../components/ChatInterface';
+import { BomSessionView } from '../components/BomSessionView';
 
 const SYSTEM_PROMPT = `
 [SYSTEM: MANUFACTURING_AGENT]
@@ -19,7 +20,9 @@ export function SessionsPage() {
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newSessionTitle, setNewSessionTitle] = useState('');
+    const [newSessionType, setNewSessionType] = useState<'tech_transfer' | 'bom_inspection'>('tech_transfer');
     const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
+    const [sessionType, setSessionType] = useState<'tech_transfer' | 'bom_inspection'>('tech_transfer');
 
     // View Mode & Collaboration State
     const [viewMode, setViewMode] = useState<'designer' | 'manufacturer'>('designer');
@@ -159,7 +162,7 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
         }
     }, [selectedSession?.id]); // Use ID to avoid re-triggering when status changes via setPoll
 
-    // Load Comments from Session Content
+    // Load Comments and Type from Session Content
     useEffect(() => {
         if (selectedSession?.content) {
             try {
@@ -167,11 +170,19 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
                 if (parsed.comments) {
                     setComments(parsed.comments);
                 }
+                if (parsed.type) {
+                    setSessionType(parsed.type);
+                } else {
+                    setSessionType('tech_transfer');
+                }
             } catch (e) {
                 // Ignore if not JSON or invalid format
+                setComments({});
+                setSessionType('tech_transfer');
             }
         } else {
             setComments({});
+            setSessionType('tech_transfer');
         }
     }, [selectedSession?.id, selectedSession?.content]);
 
@@ -1116,32 +1127,42 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                         </div>
                     ) : (
                         <div className="h-full flex flex-col">
-                            {viewMode === 'manufacturer' ? (
-                                <div className="flex-1 flex overflow-hidden">
+                            {sessionType === 'bom_inspection' ? (
+                                 <div className="flex-1 overflow-hidden flex">
+                                    <BomSessionView
+                                        session={selectedSession}
+                                        blobs={blobs}
+                                        onRefresh={() => loadSessionData(selectedSession.id)}
+                                    />
+                                 </div>
+                            ) : (
+                                viewMode === 'manufacturer' ? (
+                                    <div className="flex-1 flex overflow-hidden">
+                                        <div className="flex-1 overflow-y-auto">
+                                            {(blobs.length === 0 && wizardStep === 1) ? renderEmptyState() : renderWorkbench()}
+                                        </div>
+                                        <div
+                                            ref={resizeRef}
+                                            className="border-l border-industrial-concrete bg-industrial-steel-900/50 flex flex-col h-full relative"
+                                            style={{ width: `${chatPanelWidth}px` }}
+                                        >
+                                            <div
+                                                onMouseDown={handleResizeStart}
+                                                className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize z-10 transition-colors hover:bg-industrial-copper-500/50 ${isResizing ? 'bg-industrial-copper-500' : 'bg-industrial-copper-500/20'}`}
+                                            />
+                                            <ChatInterface
+                                                sessionId={selectedSession.id}
+                                                blobs={blobs}
+                                                onRefreshBlobs={() => loadSessionData(selectedSession.id)}
+                                                initialMessage={SYSTEM_PROMPT}
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
                                     <div className="flex-1 overflow-y-auto">
                                         {(blobs.length === 0 && wizardStep === 1) ? renderEmptyState() : renderWorkbench()}
                                     </div>
-                                    <div
-                                        ref={resizeRef}
-                                        className="border-l border-industrial-concrete bg-industrial-steel-900/50 flex flex-col h-full relative"
-                                        style={{ width: `${chatPanelWidth}px` }}
-                                    >
-                                        <div
-                                            onMouseDown={handleResizeStart}
-                                            className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize z-10 transition-colors hover:bg-industrial-copper-500/50 ${isResizing ? 'bg-industrial-copper-500' : 'bg-industrial-copper-500/20'}`}
-                                        />
-                                        <ChatInterface
-                                            sessionId={selectedSession.id}
-                                            blobs={blobs}
-                                            onRefreshBlobs={() => loadSessionData(selectedSession.id)}
-                                            initialMessage={SYSTEM_PROMPT}
-                                        />
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex-1 overflow-y-auto">
-                                    {(blobs.length === 0 && wizardStep === 1) ? renderEmptyState() : renderWorkbench()}
-                                </div>
+                                )
                             )}
                         </div>
                     )}
@@ -1156,10 +1177,15 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                         <form onSubmit={(e) => {
                             e.preventDefault();
                             if (!projectId) return;
-                            ControllersSessionsService.add({ title: newSessionTitle, content: '', project_id: projectId })
+                            ControllersSessionsService.add({
+                                title: newSessionTitle,
+                                content: JSON.stringify({ type: newSessionType }),
+                                project_id: projectId
+                            })
                                 .then((newSession) => {
                                     setShowCreateModal(false);
                                     setNewSessionTitle('');
+                                    setNewSessionType('tech_transfer');
                                     loadProjectAndSessions().then(() => {
                                         setSelectedSession(newSession);
                                     });
@@ -1173,6 +1199,30 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                 placeholder="Operation Name"
                                 autoFocus
                             />
+
+                            <div className="flex gap-4 mb-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="sessionType"
+                                        checked={newSessionType === 'tech_transfer'}
+                                        onChange={() => setNewSessionType('tech_transfer')}
+                                        className="accent-industrial-copper-500"
+                                    />
+                                    <span className="text-xs font-mono uppercase text-industrial-steel-300">Tech Transfer</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="sessionType"
+                                        checked={newSessionType === 'bom_inspection'}
+                                        onChange={() => setNewSessionType('bom_inspection')}
+                                        className="accent-industrial-copper-500"
+                                    />
+                                    <span className="text-xs font-mono uppercase text-industrial-steel-300">BOM Inspection</span>
+                                </label>
+                            </div>
+
                             <div className="flex gap-3">
                                 <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 bg-industrial-steel-800 hover:bg-industrial-steel-700 rounded-sm font-bold text-xs uppercase">Cancel</button>
                                 <button type="submit" className="flex-1 px-4 py-2 industrial-btn rounded-sm text-xs">Initialize</button>
