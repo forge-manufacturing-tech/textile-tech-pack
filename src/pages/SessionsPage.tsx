@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ControllersSessionsService, ControllersProjectsService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse } from '../api/generated';
+import { ControllersSessionsService, ControllersProjectsService, ControllersChatService, ControllersBlobsService, SessionResponse, ProjectResponse, BlobResponse } from '../api/generated';
 import { useAuth } from '../contexts/AuthContext';
 import { ChatInterface } from '../components/ChatInterface';
+import { LifecycleTracker } from '../components/LifecycleTracker';
 
 export function SessionsPage() {
     const { projectId } = useParams<{ projectId: string }>();
@@ -16,6 +17,11 @@ export function SessionsPage() {
     // View Mode & Collaboration State
     const [viewMode, setViewMode] = useState<'designer' | 'manufacturer'>('designer');
     const [comments, setComments] = useState<Record<string, string[]>>({});
+
+    // Lifecycle State
+    const [lifecycleSteps, setLifecycleSteps] = useState<string[]>([]);
+    const [lifecycleCurrentStep, setLifecycleCurrentStep] = useState(0);
+    const [isGeneratingLifecycle, setIsGeneratingLifecycle] = useState(false);
 
     // State
     const [blobs, setBlobs] = useState<BlobResponse[]>([]);
@@ -166,6 +172,87 @@ Ensure these are high-resolution and technical in style (blueprint or clean CAD 
             setComments({});
         }
     }, [selectedSession?.id, selectedSession?.content]);
+
+    // Load Lifecycle from Session Content
+    useEffect(() => {
+        if (selectedSession?.content) {
+            try {
+                const parsed = JSON.parse(selectedSession.content);
+                if (parsed.lifecycle) {
+                    setLifecycleSteps(parsed.lifecycle.steps || []);
+                    setLifecycleCurrentStep(parsed.lifecycle.currentStep || 0);
+                } else {
+                    setLifecycleSteps([]);
+                    setLifecycleCurrentStep(0);
+                }
+            } catch (e) {
+                // Ignore
+            }
+        } else {
+            setLifecycleSteps([]);
+            setLifecycleCurrentStep(0);
+        }
+    }, [selectedSession?.id, selectedSession?.content]);
+
+    const handleLifecycleUpdate = async (steps: string[], currentStep: number) => {
+        if (!selectedSession) return;
+
+        setLifecycleSteps(steps);
+        setLifecycleCurrentStep(currentStep);
+
+        try {
+            let existingContent: any = {};
+            try {
+                existingContent = selectedSession.content ? JSON.parse(selectedSession.content) : {};
+            } catch (e) { }
+
+            const payloadObj = {
+                ...existingContent,
+                lifecycle: { steps, currentStep }
+            };
+            const contentPayload = JSON.stringify(payloadObj);
+
+            await ControllersSessionsService.update(selectedSession.id, { content: contentPayload });
+
+            // Optimistically update local session content
+            setSelectedSession(prev => prev ? { ...prev, content: contentPayload } : null);
+        } catch (error) {
+            console.error('Failed to update lifecycle:', error);
+        }
+    };
+
+    const handleLifecycleGenerate = async () => {
+        if (!selectedSession) return;
+        setIsGeneratingLifecycle(true);
+        try {
+            const prompt = `[SYSTEM: LIFECYCLE_GENERATION] Generate a sequential product lifecycle plan for this project as a JSON list of strings. Example: ["Design Review", "Prototyping", "Testing", "Production"]. Do not include any other text.`;
+
+            await ControllersChatService.chat(selectedSession.id, { message: prompt });
+            const messages = await ControllersChatService.listMessages(selectedSession.id);
+            const lastMessage = messages[messages.length - 1];
+
+            if (lastMessage && lastMessage.role !== 'user') {
+                try {
+                    // Extract JSON from response
+                    const content = lastMessage.content;
+                    const jsonMatch = content.match(/\[.*\]/s);
+                    if (jsonMatch) {
+                        const steps = JSON.parse(jsonMatch[0]);
+                        if (Array.isArray(steps) && steps.every(s => typeof s === 'string')) {
+                            handleLifecycleUpdate(steps, 0);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to parse AI response for lifecycle", e);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to generate lifecycle:', error);
+            alert('Failed to generate lifecycle steps');
+        } finally {
+            setIsGeneratingLifecycle(false);
+        }
+    };
 
     const handleAddComment = async (blobId: string, text: string) => {
         if (!selectedSession || !text.trim()) return;
@@ -683,6 +770,15 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
 
         return (
             <div className="flex flex-col h-full max-w-6xl mx-auto w-full p-6 gap-6">
+
+                <LifecycleTracker
+                    steps={lifecycleSteps}
+                    currentStep={lifecycleCurrentStep}
+                    isEditable={viewMode === 'manufacturer'}
+                    onUpdate={handleLifecycleUpdate}
+                    onGenerate={handleLifecycleGenerate}
+                    isGenerating={isGeneratingLifecycle}
+                />
 
                 {/* 1. Results Preview Section (Top for visibility) */}
                 {(images.length > 0 || documents.length > 0 || csvs.length > 0) && (
