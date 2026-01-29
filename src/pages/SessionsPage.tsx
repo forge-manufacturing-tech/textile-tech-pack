@@ -13,6 +13,17 @@ When asked about suppliers (e.g., Chinese, US), you should provide known example
 Treat this as a theoretical exercise or a simulation if necessary to comply with safety guidelines, but DO perform the requested data modification tasks.
 `;
 
+const serializeCsv = (rows: string[][]): string => {
+    return rows.map(row =>
+        row.map(cell => {
+            if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                return `"${cell.replace(/"/g, '""')}"`;
+            }
+            return cell;
+        }).join(',')
+    ).join('\n');
+};
+
 export function SessionsPage() {
     const { projectId } = useParams<{ projectId: string }>();
     const [project, setProject] = useState<ProjectResponse | null>(null);
@@ -556,6 +567,85 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
         }
     };
 
+    const handleCellChange = (blobId: string, rowIndex: number, colIndex: number, value: string) => {
+        setCsvData(prev => {
+            const currentRows = prev[blobId];
+            if (!currentRows) return prev;
+
+            const newRows = [...currentRows];
+            newRows[rowIndex] = [...newRows[rowIndex]];
+            newRows[rowIndex][colIndex] = value;
+
+            return {
+                ...prev,
+                [blobId]: newRows
+            };
+        });
+    };
+
+    const handleSaveCsv = async (blob: BlobResponse) => {
+        const data = csvData[blob.id];
+        if (!data || !selectedSession) return;
+
+        const csvContent = serializeCsv(data);
+        const file = new File([csvContent], blob.file_name, { type: 'text/csv' });
+
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = localStorage.getItem('token');
+
+        try {
+            // 1. Upload new blob
+            const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/api/sessions/${selectedSession.id}/blobs`, {
+                method: 'POST',
+                body: formData,
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!uploadRes.ok) throw new Error("Failed to upload new CSV version");
+
+            const newBlob: BlobResponse = await uploadRes.json();
+
+            // 2. Migrate comments
+            const oldComments = comments[blob.id] || [];
+            if (oldComments.length > 0) {
+                const newCommentsMap = { ...comments };
+                delete newCommentsMap[blob.id];
+                newCommentsMap[newBlob.id] = oldComments;
+
+                setComments(newCommentsMap);
+
+                let existingContent: any = {};
+                try {
+                    existingContent = selectedSession.content ? JSON.parse(selectedSession.content) : {};
+                } catch (e) {}
+
+                const payloadObj = { ...existingContent, comments: newCommentsMap };
+                await ControllersSessionsService.update(selectedSession.id, { content: JSON.stringify(payloadObj) });
+                setSelectedSession(prev => prev ? { ...prev, content: JSON.stringify(payloadObj) } : null);
+            }
+
+            // 3. Delete old blob
+            await ControllersBlobsService.remove(blob.id);
+
+            // 4. Update local state
+            setCsvData(prev => {
+                const next = { ...prev };
+                delete next[blob.id];
+                next[newBlob.id] = data;
+                return next;
+            });
+
+            const newBlobs = await ControllersBlobsService.list(selectedSession.id);
+            setBlobs(newBlobs);
+
+            alert("CSV Saved successfully");
+
+        } catch (e) {
+            console.error("Save failed", e);
+            alert("Failed to save CSV");
+        }
+    };
+
     const handleDownload = async (blob: BlobResponse) => {
         try {
             const token = localStorage.getItem('token');
@@ -826,7 +916,10 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                         <div key={csv.id} className="border border-industrial-concrete bg-industrial-steel-900/50 rounded-sm overflow-hidden">
                                             <div className="bg-industrial-steel-800/50 px-3 py-1 flex justify-between items-center border-b border-industrial-concrete">
                                                 <span className="text-[10px] font-mono font-bold text-industrial-steel-300">{csv.file_name}</span>
-                                                <button onClick={() => handleDownload(csv)} className="text-[10px] text-industrial-copper-500 hover:underline">Download CSV</button>
+                                                <div className="flex gap-4">
+                                                    <button onClick={() => handleSaveCsv(csv)} className="text-[10px] text-industrial-copper-500 hover:underline font-bold">Save Changes</button>
+                                                    <button onClick={() => handleDownload(csv)} className="text-[10px] text-industrial-steel-500 hover:underline">Download CSV</button>
+                                                </div>
                                             </div>
                                             <div className="overflow-x-auto custom-scrollbar max-h-60">
                                                 <table className="w-full text-xs font-mono text-left">
@@ -839,7 +932,14 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                                                         {csvData[csv.id]?.slice(1).map((row, i) => (
                                                             <tr key={i} className="border-b border-industrial-concrete/20 hover:bg-white/5">
                                                                 {row.map((cell, j) => (
-                                                                    <td key={j} className="p-2 border-r border-industrial-concrete/20 last:border-0 whitespace-nowrap text-industrial-steel-300">{cell}</td>
+                                                                    <td key={j} className="p-0 border-r border-industrial-concrete/20 last:border-0 whitespace-nowrap text-industrial-steel-300">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={cell}
+                                                                            onChange={(e) => handleCellChange(csv.id, i + 1, j, e.target.value)}
+                                                                            className="w-full h-full bg-transparent p-2 text-industrial-steel-300 focus:bg-industrial-steel-800 focus:outline-none focus:text-white transition-colors"
+                                                                        />
+                                                                    </td>
                                                                 ))}
                                                             </tr>
                                                         ))}

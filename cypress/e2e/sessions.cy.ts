@@ -198,4 +198,140 @@ describe('Sessions Management', () => {
         cy.contains('Designer').click()
         cy.contains('Secure-AI-Link').should('not.exist')
     })
+
+    it('should display and edit CSV data', () => {
+        const sessionTitle = `CSV Edit Test ${Date.now()}`
+        const csvBlobId = 'mock-csv-blob-id'
+        const newCsvBlobId = 'mock-new-csv-blob-id'
+
+        // Handle CORS Preflight
+        cy.intercept('OPTIONS', '**', {
+            statusCode: 204,
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+            },
+        }).as('corsPreflight')
+
+        // Mock session
+        cy.intercept('POST', '**/api/sessions', (req) => {
+            req.reply({
+                statusCode: 200,
+                body: { id: 'mock-session-csv-id', title: req.body.title, project_id: 'mock-project-id' },
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            })
+        }).as('createSessionForCsv')
+
+        cy.intercept('GET', '**/api/sessions*', {
+            statusCode: 200,
+            body: [{ id: 'mock-session-csv-id', title: sessionTitle }],
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        }).as('getSessionsForCsv')
+
+        cy.intercept('GET', '**/api/sessions/mock-session-csv-id', {
+            statusCode: 200,
+            body: { id: 'mock-session-csv-id', title: sessionTitle, status: 'pending' },
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        })
+
+        // Mock Update Session (for comments migration)
+        cy.intercept('PUT', '**/api/sessions/mock-session-csv-id', {
+            statusCode: 200,
+            body: { id: 'mock-session-csv-id', title: sessionTitle, content: '{}' },
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        }).as('updateSession')
+
+        // Mock List refresh (Fallback)
+        cy.intercept('GET', '**/api/sessions/mock-session-csv-id/blobs', (req) => {
+             req.reply({
+                statusCode: 200,
+                body: [{
+                    id: newCsvBlobId,
+                    file_name: 'data.csv',
+                    content_type: 'text/csv',
+                    size: 100,
+                    created_at: new Date().toISOString()
+                }],
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            })
+        }).as('getBlobsAfterSave')
+
+        // Mock Blobs list with a CSV (Initial load - match first)
+        cy.intercept(
+            {
+                method: 'GET',
+                url: '**/api/sessions/mock-session-csv-id/blobs',
+                times: 1
+            },
+            {
+                statusCode: 200,
+                body: [{
+                    id: csvBlobId,
+                    file_name: 'data.csv',
+                    content_type: 'text/csv',
+                    size: 100,
+                    created_at: new Date().toISOString()
+                }],
+                headers: { 'Access-Control-Allow-Origin': '*' },
+            }
+        ).as('getBlobsWithCsv')
+
+        // Mock CSV download
+        cy.intercept('GET', `**/download`, {
+            statusCode: 200,
+            body: 'Header1,Header2\nValue1,Value2',
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        }).as('downloadCsv')
+
+        // Mock Upload new CSV
+        cy.intercept('POST', '**/api/sessions/mock-session-csv-id/blobs', {
+            statusCode: 200,
+            body: {
+                id: newCsvBlobId,
+                file_name: 'data.csv',
+                content_type: 'text/csv',
+                size: 100,
+                created_at: new Date().toISOString()
+            },
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        }).as('uploadNewCsv')
+
+        // Mock Delete old CSV
+        cy.intercept('DELETE', `**/api/blobs/${csvBlobId}`, {
+            statusCode: 200,
+            body: {},
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        }).as('deleteOldCsv')
+
+
+        // Actions
+        cy.contains('+ New Session').click()
+        cy.get('input[placeholder="Operation Name"]').type(sessionTitle)
+        cy.contains('button', 'Initialize').click()
+
+        // Wait for CSV to load
+        cy.contains('data.csv', { timeout: 10000 }).should('be.visible')
+
+        cy.wait('@downloadCsv')
+
+        // Verify input fields
+        cy.get('input[value="Value1"]').should('be.visible')
+        cy.get('input[value="Value2"]').should('be.visible')
+
+        // Edit a cell
+        cy.get('input[value="Value1"]').clear().type('EditedValue')
+
+        // Save
+        cy.contains('Save Changes').click()
+
+        // Verify API calls
+        cy.wait('@uploadNewCsv')
+        cy.wait('@deleteOldCsv')
+
+        // Success alert
+        cy.on('window:alert', (txt) => {
+            expect(txt).to.contains('CSV Saved successfully');
+        });
+    })
 })
