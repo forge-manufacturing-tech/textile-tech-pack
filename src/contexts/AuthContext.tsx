@@ -12,9 +12,12 @@ interface User {
 interface AuthContextType {
     user: User | null;
     token: string | null;
+    viewMode: 'designer' | 'manufacturer';
+    lastLogin: string | null;
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, name: string) => Promise<void>;
     logout: () => void;
+    setViewMode: (mode: 'designer' | 'manufacturer') => void;
     isLoading: boolean;
 }
 
@@ -37,6 +40,11 @@ function parseJwt(token: string) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+    const [viewMode, setViewModeState] = useState<'designer' | 'manufacturer'>(() => {
+        return (localStorage.getItem('view_mode') as 'designer' | 'manufacturer') || 'manufacturer';
+    });
+    const [lastLogin, setLastLogin] = useState<string | null>(localStorage.getItem('last_login'));
+
     const [user, setUser] = useState<User | null>(() => {
         const storedToken = localStorage.getItem('token');
         const storedUser = localStorage.getItem('user_data');
@@ -71,6 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [token]);
 
+    const setViewMode = (mode: 'designer' | 'manufacturer') => {
+        localStorage.setItem('view_mode', mode);
+        setViewModeState(mode);
+    };
+
     const login = async (email: string, password: string) => {
         const response = await ControllersAuthService.login({ email, password });
         console.log('Login Response from Backend:', response);
@@ -84,12 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: (response as any).role || decoded?.role || 'user'
         };
 
+        const loginTime = new Date().toISOString();
         localStorage.setItem('token', newToken);
         localStorage.setItem('user_data', JSON.stringify(newUser));
+        localStorage.setItem('last_login', loginTime);
         OpenAPI.TOKEN = newToken;
 
         setUser(newUser);
         setToken(newToken);
+        setLastLogin(loginTime);
     };
 
     const register = async (email: string, password: string, name: string) => {
@@ -107,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, login, register, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, token, viewMode, lastLogin, login, register, logout, setViewMode, isLoading }}>
             {children}
         </AuthContext.Provider>
     );

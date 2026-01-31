@@ -146,8 +146,8 @@ describe('Sessions Management', () => {
         cy.contains('PROJECTS').should('be.visible')
     })
 
-    it('should toggle between Designer and Manufacturer views', () => {
-        const sessionTitle = `View Toggle Test ${Date.now()}`
+    it('should display Manufacturer view by default', () => {
+        const sessionTitle = `View Test ${Date.now()}`
 
         // Mock Session with ID
         cy.intercept('POST', '**/api/sessions', (req) => {
@@ -182,21 +182,11 @@ describe('Sessions Management', () => {
         cy.get('input[placeholder="Operation Name"]').type(sessionTitle)
         cy.contains('button', 'Initialize').click()
 
-        // Verify Designer Mode (default)
-        // Note: Buttons are uppercase via CSS but text is "Designer" / "Manufacturer" in code.
-        // We can check case-insensitive or the exact text node.
-        cy.contains('Designer').should('be.visible')
-        cy.contains('Manufacturer').should('be.visible')
-
-        // Toggle to Manufacturer
-        cy.contains('Manufacturer').click()
+        // Verify Manufacturer Mode (default for new logins)
+        cy.contains('Manufacturer View').should('be.visible')
 
         // Check for Chat Interface presence (Secure-AI-Link text)
         cy.contains('Secure-AI-Link').should('be.visible')
-
-        // Toggle back
-        cy.contains('Designer').click()
-        cy.contains('Secure-AI-Link').should('not.exist')
     })
 
     it('should display and edit CSV data', () => {
