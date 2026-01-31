@@ -5,9 +5,10 @@ interface ChatInterfaceProps {
     sessionId: string;
     blobs: BlobResponse[];
     onRefreshBlobs?: () => void;
+    refreshTrigger?: number;
 }
 
-export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage }: ChatInterfaceProps & { initialMessage?: string }) {
+export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage, refreshTrigger }: ChatInterfaceProps & { initialMessage?: string }) {
     const [messages, setMessages] = useState<MessageResponse[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -22,7 +23,7 @@ export function ChatInterface({ sessionId, blobs, onRefreshBlobs, initialMessage
 
     useEffect(() => {
         loadMessages();
-    }, [sessionId]);
+    }, [sessionId, refreshTrigger]);
 
     useEffect(() => {
         scrollToBottom();

@@ -238,6 +238,7 @@ describe('Sessions Management', () => {
                 statusCode: 200,
                 body: [{
                     id: newCsvBlobId,
+                    session_id: 'mock-session-csv-id',
                     file_name: 'data.csv',
                     content_type: 'text/csv',
                     size: 100,
@@ -258,6 +259,7 @@ describe('Sessions Management', () => {
                 statusCode: 200,
                 body: [{
                     id: csvBlobId,
+                    session_id: 'mock-session-csv-id',
                     file_name: 'data.csv',
                     content_type: 'text/csv',
                     size: 100,
@@ -279,6 +281,7 @@ describe('Sessions Management', () => {
             statusCode: 200,
             body: {
                 id: newCsvBlobId,
+                session_id: 'mock-session-csv-id',
                 file_name: 'data.csv',
                 content_type: 'text/csv',
                 size: 100,
