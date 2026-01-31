@@ -6,6 +6,7 @@ import { HomePage } from './pages/HomePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { SessionsPage } from './pages/SessionsPage';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { DesignerDashboard } from './pages/DesignerDashboard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const { token, isLoading } = useAuth();
@@ -54,6 +55,16 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
 }
 
+function DashboardRedirect() {
+    const { viewMode } = useAuth();
+
+    if (viewMode === 'designer') {
+        return <Navigate to="/designer" />;
+    }
+
+    return <ProjectsPage />;
+}
+
 function AppRoutes() {
     return (
         <Routes>
@@ -77,7 +88,15 @@ function AppRoutes() {
                 path="/dashboard"
                 element={
                     <ProtectedRoute>
-                        <ProjectsPage />
+                        <DashboardRedirect />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/designer"
+                element={
+                    <ProtectedRoute>
+                        <DesignerDashboard />
                     </ProtectedRoute>
                 }
             />

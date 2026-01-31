@@ -33,8 +33,7 @@ export function SessionsPage() {
     const [newSessionTitle, setNewSessionTitle] = useState('');
     const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
 
-    // View Mode & Collaboration State
-    const [viewMode, setViewMode] = useState<'designer' | 'manufacturer'>('designer');
+    const { viewMode } = useAuth();
     const [comments, setComments] = useState<Record<string, string[]>>({});
 
     // Lifecycle State
@@ -840,21 +839,19 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                         ))}
                     </div>
                 )}
-                {viewMode === 'designer' && (
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            placeholder="Add comment..."
-                            className="flex-1 industrial-input px-2 py-1 text-[10px] rounded-sm font-mono"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    handleAddComment(blobId, e.currentTarget.value);
-                                    e.currentTarget.value = '';
-                                }
-                            }}
-                        />
-                    </div>
-                )}
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        placeholder="Add comment..."
+                        className="flex-1 industrial-input px-2 py-1 text-[10px] rounded-sm font-mono"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                handleAddComment(blobId, e.currentTarget.value);
+                                e.currentTarget.value = '';
+                            }
+                        }}
+                    />
+                </div>
             </div>
         );
 
@@ -1253,22 +1250,11 @@ CRITICAL GENERAL INSTRUCTIONS FOR WORD DOCS (Ignore for Images):
                         <h1 className="industrial-headline text-xl">{project?.name} <span className="text-industrial-steel-600 mx-2">//</span> TECH TRANSFER SUITE</h1>
                     </div>
 
-                    {selectedSession && (
-                        <div className="flex bg-industrial-steel-900 border border-industrial-concrete rounded-sm p-0.5">
-                            <button
-                                onClick={() => setViewMode('designer')}
-                                className={`px-4 py-1.5 text-[10px] uppercase font-mono tracking-widest transition-all rounded-sm ${viewMode === 'designer' ? 'bg-industrial-copper-500 text-white shadow-glow-copper/20' : 'text-industrial-steel-500 hover:text-industrial-steel-300'}`}
-                            >
-                                Designer
-                            </button>
-                            <button
-                                onClick={() => setViewMode('manufacturer')}
-                                className={`px-4 py-1.5 text-[10px] uppercase font-mono tracking-widest transition-all rounded-sm ${viewMode === 'manufacturer' ? 'bg-industrial-copper-500 text-white shadow-glow-copper/20' : 'text-industrial-steel-500 hover:text-industrial-steel-300'}`}
-                            >
-                                Manufacturer
-                            </button>
-                        </div>
-                    )}
+                    <div className="flex bg-industrial-steel-900 border border-industrial-concrete rounded-sm p-0.5">
+                        <span className="px-4 py-1.5 text-[10px] uppercase font-mono tracking-widest bg-industrial-copper-500/10 text-industrial-copper-500 rounded-sm">
+                            {viewMode} View
+                        </span>
+                    </div>
 
                     <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 industrial-btn rounded-sm text-xs">+ New Session</button>
                 </div>
